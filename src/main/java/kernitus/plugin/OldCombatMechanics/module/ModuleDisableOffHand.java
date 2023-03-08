@@ -53,7 +53,7 @@ public class ModuleDisableOffHand extends Module {
         final ClickType clickType = e.getClick();
 
         try {
-            if (clickType == ClickType.SWAP_OFFHAND) {
+            if (clickType == ClickType.SWAP_OFFHAND && shouldWeCancel(e.getCurrentItem())) {
                 e.setResult(Event.Result.DENY);
                 e.setCancelled(true);
                 return;
