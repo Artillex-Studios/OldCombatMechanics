@@ -33,8 +33,6 @@ dependencies {
     // Shaded in by Bukkit
     compileOnly("io.netty:netty-all:4.1.93.Final")
     compileOnly("me.clip:placeholderapi:2.11.3")
-    // Spartan API
-    compileOnly("me.vagdedes.spartan:SpartanAPI:9.0")
 }
 
 group = "kernitus.plugin.OldCombatMechanics"

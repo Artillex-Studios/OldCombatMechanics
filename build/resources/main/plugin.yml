@@ -1,0 +1,53 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+main: kernitus.plugin.OldCombatMechanics.OCMMain
+name: OldCombatMechanics
+version: 1.12.3-beta
+authors: [kernitus, Rayzr522]
+description: Reverts to pre-1.9 combat mechanics
+website: https://github.com/kernitus/BukkitOldCombatMechanics
+load: POSTWORLD
+softdepend: [PlaceholderAPI, Spartan]
+api-version: 1.13
+
+commands:
+  OldCombatMechanics:
+   description: OldCombatMechanics's main command
+   aliases: [ocm]
+   permission: OldCombatMechanics.commands
+   
+permissions:
+  OldCombatMechanics.*:
+    description: Gives access to all OCM permissions
+    default: op
+    children:
+      OldCombatMechanics.commands: true
+      OldCombatMechanics.notify: true
+      OldCombatMechanics.toggle: true
+      OldCombatMechanics.enable: true
+      OldCombatMechanics.disable: true
+      OldCombatMechanics.nolapis: true
+      OldCombatMechanics.swordblock: true
+  OldCombatMechanics.commands:
+    description: Allows the usage of OCM commands
+    default: op
+  OldCombatMechanics.notify:
+    description: Notifies of new OCM updates
+    default: op
+  OldCombatMechanics.toggle:
+    description: Allows enabling and disabling attack cooldown
+    default: op
+  OldCombatMechanics.enable:
+    description: Allows enabling attack cooldown for server or world
+    default: op
+  OldCombatMechanics.disable:
+    description: Allows disabling attack cooldown for server or world
+    default: op
+  OldCombatMechanics.nolapis:
+    description: Allows lapis to be auto-placed in enchantment tables
+    default: op
+  OldCombatMechanics.swordblock:
+    description: Allows players to block with their sword
+    default: op

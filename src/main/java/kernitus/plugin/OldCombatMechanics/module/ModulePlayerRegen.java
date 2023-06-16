@@ -7,8 +7,6 @@ package kernitus.plugin.OldCombatMechanics.module;
 
 import kernitus.plugin.OldCombatMechanics.OCMMain;
 import kernitus.plugin.OldCombatMechanics.utilities.MathsHelper;
-import me.vagdedes.spartan.api.API;
-import me.vagdedes.spartan.system.Enums.HackType;
 import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.EntityType;
@@ -29,12 +27,9 @@ import java.util.WeakHashMap;
 public class ModulePlayerRegen extends OCMModule {
 
     private final Map<UUID, Long> healTimes = new WeakHashMap<>();
-    private boolean spartanInstalled;
 
     public ModulePlayerRegen(OCMMain plugin) {
         super(plugin, "old-player-regen");
-
-        initSpartan();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -75,7 +70,6 @@ public class ModulePlayerRegen extends OCMModule {
         if (playerHealth < maxHealth) {
             p.setHealth(MathsHelper.clamp(playerHealth + module().getInt("amount"), 0.0, maxHealth));
             healTimes.put(playerId, currentTime);
-            if (spartanInstalled) disableSpartanRegenCheck(p);
         }
 
         // Calculate new exhaustion value, must be between 0 and 4. If above, it will reduce the saturation in the following tick.
@@ -92,13 +86,5 @@ public class ModulePlayerRegen extends OCMModule {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent e) {
         healTimes.remove(e.getPlayer().getUniqueId());
-    }
-
-    private void disableSpartanRegenCheck(Player player) {
-        API.cancelCheck(player, HackType.FastHeal, 1);
-    }
-
-    private void initSpartan() {
-        spartanInstalled = Bukkit.getPluginManager().getPlugin("Spartan") != null;
     }
 }
