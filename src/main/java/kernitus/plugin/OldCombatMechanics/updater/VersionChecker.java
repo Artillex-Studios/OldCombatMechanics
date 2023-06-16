@@ -12,19 +12,15 @@ import java.util.regex.Pattern;
 
 public class VersionChecker {
 
-    public static boolean shouldUpdate(String remoteVersion){
-        return shouldUpdate(remoteVersion, OCMMain.getVersion());
+    public static boolean shouldUpdate(String remoteVersion) {
+        return isUpdateOut(remoteVersion, OCMMain.getVersion());
     }
 
-    public static boolean shouldUpdate(String remoteVersion, String localVersion){
-        return isUpdateOut(remoteVersion, localVersion);
-    }
+    private static boolean isUpdateOut(String remoteVersion, String localVersion) {
+        final int[] testVer = getVersionNumbers(remoteVersion);
+        final int[] baseVer = getVersionNumbers(localVersion);
 
-    private static boolean isUpdateOut(String remoteVersion, String localVersion){
-        int[] testVer = getVersionNumbers(remoteVersion);
-        int[] baseVer = getVersionNumbers(localVersion);
-
-        for(int i = 0; i < testVer.length; i++) {
+        for (int i = 0; i < testVer.length; i++) {
             if (testVer[i] != baseVer[i])
                 return testVer[i] > baseVer[i];
         }
@@ -32,9 +28,9 @@ public class VersionChecker {
         return false;
     }
 
-    private static int[] getVersionNumbers(String ver){
+    private static int[] getVersionNumbers(String ver) {
         Matcher m = Pattern.compile("(\\d+)\\.(\\d+)\\.*(\\d*)(-beta(\\d*))?", Pattern.CASE_INSENSITIVE).matcher(ver);
-        if(!m.matches()) throw new IllegalArgumentException("Plugin version formatted wrong!");
+        if (!m.matches()) throw new IllegalArgumentException("Plugin version formatted wrong!");
 
         // Group 1 = MAJOR
         // Group 2 = MINOR
@@ -42,8 +38,9 @@ public class VersionChecker {
         // Group 4 = beta
         // Group 5 = beta_version
 
-        //This parses it to MAJOR.MINOR.PATCH.beta_version
-        //MAJOR & MINOR required, anything else is set to highest value possible if omitted
+        //This parses it to MAJOR.MINOR.PATCH-beta_version
+        //MAJOR & MINOR required, anything else is set to maximum value if omitted - necessary otherwise
+        // somebody with a beta version will not see update to release version
         return new int[]{
                 Integer.parseInt(m.group(1)),
                 Integer.parseInt(m.group(2)),

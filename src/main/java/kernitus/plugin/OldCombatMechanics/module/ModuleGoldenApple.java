@@ -5,10 +5,13 @@
  */
 package kernitus.plugin.OldCombatMechanics.module;
 
+import com.google.common.collect.ImmutableSet;
 import kernitus.plugin.OldCombatMechanics.OCMMain;
 import kernitus.plugin.OldCombatMechanics.utilities.Messenger;
-import org.bukkit.*;
-import org.bukkit.advancement.Advancement;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -17,9 +20,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerStatisticIncrementEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -33,8 +34,15 @@ import static kernitus.plugin.OldCombatMechanics.versions.materials.MaterialRegi
 /**
  * Customise the golden apple effects.
  */
-public class ModuleGoldenApple extends Module {
+public class ModuleGoldenApple extends OCMModule {
 
+    // Default apple effects
+    // Gapple: absorption I, regen II
+    private static final Set<PotionEffectType> gappleEffects = ImmutableSet.of(PotionEffectType.ABSORPTION,
+            PotionEffectType.REGENERATION);
+    // Napple: absorption IV, regen II, fire resistance I, resistance I
+    private static final Set<PotionEffectType> nappleEffects = ImmutableSet.of(PotionEffectType.ABSORPTION,
+            PotionEffectType.REGENERATION, PotionEffectType.FIRE_RESISTANCE, PotionEffectType.DAMAGE_RESISTANCE);
     private List<PotionEffect> enchantedGoldenAppleEffects, goldenAppleEffects;
     private ShapedRecipe enchantedAppleRecipe;
 
@@ -83,7 +91,7 @@ public class ModuleGoldenApple extends Module {
         if (isEnabled() && module().getBoolean("enchanted-golden-apple-crafting")) {
             if (Bukkit.getRecipesFor(ENCHANTED_GOLDEN_APPLE.newInstance()).size() > 0) return;
             Bukkit.addRecipe(enchantedAppleRecipe);
-            Messenger.debug("Added napple recipe");
+            debug("Added napple recipe");
         }
     }
 
@@ -94,37 +102,34 @@ public class ModuleGoldenApple extends Module {
             return; // This should never ever ever ever run. If it does then you probably screwed something up.
 
         if (ENCHANTED_GOLDEN_APPLE.isSame(item)) {
-
             final World world = e.getView().getPlayer().getWorld();
 
             if (isSettingEnabled("no-conflict-mode")) return;
 
-            if (!isEnabled(world))
-                e.getInventory().setResult(null);
-            else if (isEnabled(world) && !isSettingEnabled("enchanted-golden-apple-crafting"))
+            if (!isEnabled(world) || !isSettingEnabled("enchanted-golden-apple-crafting"))
                 e.getInventory().setResult(null);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onItemConsume(PlayerItemConsumeEvent e) {
-        final Player p = e.getPlayer();
+        final Player player = e.getPlayer();
 
-        if (!isEnabled(p.getWorld())) return;
+        if (!isEnabled(player.getWorld())) return;
 
-        ItemStack item = e.getItem();
-        final Material consumedMaterial = item.getType();
+        final ItemStack originalItem = e.getItem();
+        final Material consumedMaterial = originalItem.getType();
 
         if (consumedMaterial != Material.GOLDEN_APPLE &&
-                !ENCHANTED_GOLDEN_APPLE.isSame(e.getItem())) return;
+                !ENCHANTED_GOLDEN_APPLE.isSame(originalItem)) return;
 
-        final UUID uuid = p.getUniqueId();
+        final UUID uuid = player.getUniqueId();
 
         // Check if the cooldown has expired yet
         lastEaten.putIfAbsent(uuid, new LastEaten());
 
         // If on cooldown send appropriate cooldown message
-        if (cooldown.isOnCooldown(item, lastEaten.get(uuid))) {
+        if (cooldown.isOnCooldown(originalItem, lastEaten.get(uuid))) {
             final LastEaten le = lastEaten.get(uuid);
 
             final long baseCooldown;
@@ -148,69 +153,52 @@ public class ModuleGoldenApple extends Module {
             final long seconds = baseCooldown - (Instant.now().getEpochSecond() - current.getEpochSecond());
 
             if (message != null && !message.isEmpty())
-                Messenger.sendNormalMessage(p, message.replaceAll("%seconds%", String.valueOf(seconds)));
+                Messenger.sendNormalMessage(player, message.replaceAll("%seconds%", String.valueOf(seconds)));
 
             e.setCancelled(true);
             return;
         }
 
-        lastEaten.get(p.getUniqueId()).setForItem(item);
+        lastEaten.get(uuid).setForItem(originalItem);
 
         if (!isSettingEnabled("old-potion-effects")) return;
-        e.setCancelled(true);
 
-        final ItemStack originalItem = e.getItem();
-        final PlayerInventory inv = p.getInventory();
+        // Save player's current potion effects
+        final Collection<PotionEffect> previousPotionEffects = player.getActivePotionEffects();
 
-        // Hunger level
-        final int foodLevel = Math.min(p.getFoodLevel() + 4, 20);
-        p.setFoodLevel(foodLevel);
+        final List<PotionEffect> newEffects = ENCHANTED_GOLDEN_APPLE.isSame(originalItem) ?
+                enchantedGoldenAppleEffects : goldenAppleEffects;
+        final Set<PotionEffectType> defaultEffects = ENCHANTED_GOLDEN_APPLE.isSame(originalItem) ?
+                nappleEffects : gappleEffects;
 
-        if (p.getGameMode() != GameMode.CREATIVE) item.setAmount(item.getAmount() - 1);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // Remove all potion effects the apple added
+            player.getActivePotionEffects().stream()
+                    .map(PotionEffect::getType)
+                    .filter(defaultEffects::contains)
+                    .forEach(player::removePotionEffect);
+            // Add previous potion effects from before eating the apple
+            player.addPotionEffects(previousPotionEffects);
+            // Add new custom effects from eating the apple
+            applyEffects(player, newEffects);
+        }, 1L);
+    }
 
-        // Gapple and Napple saturation is 9.6
-        float saturation = p.getSaturation() + 9.6f;
-        // "The total saturation never gets higher than the total number of hunger points"
-        if (saturation > foodLevel)
-            saturation = foodLevel;
+    private void applyEffects(LivingEntity target, List<PotionEffect> effects) {
+        for (PotionEffect effect : effects) {
+            final OptionalInt maxActiveAmplifier = target.getActivePotionEffects().stream()
+                    .filter(potionEffect -> potionEffect.getType() == effect.getType())
+                    .mapToInt(PotionEffect::getAmplifier)
+                    .max();
 
-        p.setSaturation(saturation);
+            // If active effect stronger, do not apply weaker one
+            if (maxActiveAmplifier.orElse(-1) > effect.getAmplifier()) continue;
 
-        if (ENCHANTED_GOLDEN_APPLE.isSame(item)) applyEffects(p, enchantedGoldenAppleEffects);
-        else applyEffects(p, goldenAppleEffects);
+            // If active effect weaker, remove it and apply new one
+            maxActiveAmplifier.ifPresent(ignored -> target.removePotionEffect(effect.getType()));
 
-        if (item.getAmount() <= 0) item = null;
-
-        final ItemStack mainHand = inv.getItemInMainHand();
-        final ItemStack offHand = inv.getItemInOffHand();
-
-        if (mainHand.equals(originalItem)) inv.setItemInMainHand(item);
-        else if (offHand.equals(originalItem)) inv.setItemInOffHand(item);
-        else if (mainHand.getType() == Material.GOLDEN_APPLE || ENCHANTED_GOLDEN_APPLE.isSame(mainHand))
-            inv.setItemInMainHand(item);
-        // The bug occurs here, so we must check which hand has the apples
-        // A player can't eat food in the offhand if there is any in the main hand
-        // On this principle if there are gapples in the mainhand it must be that one, else it's the offhand
-
-        // Below here are fixes for statistics & advancements, given we are cancelling the event
-        final int initialValue = p.getStatistic(Statistic.USE_ITEM, consumedMaterial);
-
-        // We need to increment player statistics for having eaten a gapple
-        p.incrementStatistic(Statistic.USE_ITEM, consumedMaterial);
-
-        // Call the event as .incrementStatistic doesn't seem to, and other plugins may rely on it
-        final PlayerStatisticIncrementEvent psie = new PlayerStatisticIncrementEvent(p, Statistic.USE_ITEM, initialValue, initialValue + 1, consumedMaterial);
-        Bukkit.getServer().getPluginManager().callEvent(psie);
-
-        try {
-            NamespacedKey nsk = NamespacedKey.minecraft("husbandry/balanced_diet");
-            Advancement advancement = Bukkit.getAdvancement(nsk);
-
-            // Award advancement criterion for having eaten gapple, as incrementing statistic or calling event doesn't seem to
-            if (advancement != null)
-                p.getAdvancementProgress(advancement).awardCriteria(consumedMaterial.name().toLowerCase());
-        } catch (NoClassDefFoundError ignored) {
-        } // Pre 1.12 does not have advancements
+            target.addPotionEffect(effect);
+        }
     }
 
     private List<PotionEffect> getPotionEffects(String apple) {
@@ -230,26 +218,10 @@ public class ModuleGoldenApple extends Module {
         return appleEffects;
     }
 
-    private void applyEffects(LivingEntity target, List<PotionEffect> effects) {
-        for (PotionEffect effect : effects) {
-            OptionalInt maxActiveAmplifier = target.getActivePotionEffects().stream()
-                    .filter(potionEffect -> potionEffect.getType() == effect.getType())
-                    .mapToInt(PotionEffect::getAmplifier)
-                    .max();
-
-            // the active one is stronger, so do not apply the weaker one
-            if (maxActiveAmplifier.orElse(-1) > effect.getAmplifier()) continue;
-
-            // remove it, as the active one is weaker
-            maxActiveAmplifier.ifPresent(ignored -> target.removePotionEffect(effect.getType()));
-
-            target.addPotionEffect(effect);
-        }
-    }
-
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent e) {
-        if (lastEaten != null) lastEaten.remove(e.getPlayer().getUniqueId());
+        final UUID uuid = e.getPlayer().getUniqueId();
+        if (lastEaten != null) lastEaten.remove(uuid);
     }
 
     private static class LastEaten {

@@ -6,7 +6,6 @@
 package kernitus.plugin.OldCombatMechanics.commands;
 
 import kernitus.plugin.OldCombatMechanics.OCMMain;
-import kernitus.plugin.OldCombatMechanics.UpdateChecker;
 import kernitus.plugin.OldCombatMechanics.module.ModuleAttackCooldown;
 import kernitus.plugin.OldCombatMechanics.utilities.Config;
 import kernitus.plugin.OldCombatMechanics.utilities.Messenger;
@@ -31,7 +30,7 @@ public class OCMCommandHandler implements CommandExecutor {
     private final OCMMain plugin;
     private final File pluginFile;
 
-    enum Subcommand {reload, toggle, test, enable, disable}
+    enum Subcommand {reload, toggle, enable, disable}
 
     public OCMCommandHandler(OCMMain instance, File pluginFile) {
         this.plugin = instance;
@@ -39,7 +38,6 @@ public class OCMCommandHandler implements CommandExecutor {
     }
 
     private void help(OCMMain plugin, CommandSender sender) {
-        final FileConfiguration config = plugin.getConfig();
         final PluginDescriptionFile description = plugin.getDescription();
 
         Messenger.send(sender, ChatColor.DARK_GRAY + Messenger.HORIZONTAL_BAR);
@@ -54,8 +52,7 @@ public class OCMCommandHandler implements CommandExecutor {
 
         Messenger.send(sender, ChatColor.DARK_GRAY + Messenger.HORIZONTAL_BAR);
 
-        // Check for updates
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> new UpdateChecker(plugin, pluginFile).sendUpdateMessages(sender));
+
     }
 
     private void reload(CommandSender sender) {
@@ -130,21 +127,30 @@ public class OCMCommandHandler implements CommandExecutor {
             help(plugin, sender);
         } else {
             try {
-                final Subcommand subcommand = Subcommand.valueOf(args[0].toLowerCase(Locale.ROOT));
-                if (checkPermissions(sender, subcommand, true)) {
-                    switch (subcommand) {
-                        case reload: reload(sender);
-                            break;
-                        case toggle: toggle(plugin, sender, args);
-                            break;
-                        //case test: test(plugin, sender);
-                        //    break;
-                        case enable: wideToggle(sender, args, ModuleAttackCooldown.PVPMode.NEW_PVP);
-                            break;
-                        case disable: wideToggle(sender, args, ModuleAttackCooldown.PVPMode.OLD_PVP);
-                            break;
-                        default: throw new CommandNotRecognisedException();
+                try {
+                    final Subcommand subcommand = Subcommand.valueOf(args[0].toLowerCase(Locale.ROOT));
+                    if (checkPermissions(sender, subcommand, true)) {
+                        switch (subcommand) {
+                            case reload:
+                                reload(sender);
+                                break;
+                            case toggle:
+                                toggle(plugin, sender, args);
+                                break;
+                            //case test: test(plugin, sender);
+                            //    break;
+                            case enable:
+                                wideToggle(sender, args, ModuleAttackCooldown.PVPMode.NEW_PVP);
+                                break;
+                            case disable:
+                                wideToggle(sender, args, ModuleAttackCooldown.PVPMode.OLD_PVP);
+                                break;
+                            default:
+                                throw new CommandNotRecognisedException();
+                        }
                     }
+                } catch (IllegalArgumentException e) {
+                    throw new CommandNotRecognisedException();
                 }
             } catch (CommandNotRecognisedException e) {
                 Messenger.sendNormalMessage(sender, "Subcommand not recognised!");
@@ -153,7 +159,8 @@ public class OCMCommandHandler implements CommandExecutor {
         return true;
     }
 
-    private static class CommandNotRecognisedException extends IllegalArgumentException{}
+    private static class CommandNotRecognisedException extends IllegalArgumentException {
+    }
 
     static boolean checkPermissions(CommandSender sender, Subcommand subcommand) {
         return checkPermissions(sender, subcommand, false);

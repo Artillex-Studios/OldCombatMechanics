@@ -27,7 +27,7 @@ import java.util.EnumMap;
 /**
  * Brings back the old fishing-rod knockback.
  */
-public class ModuleFishingKnockback extends Module {
+public class ModuleFishingKnockback extends OCMModule {
 
     private final SpigotFunctionChooser<PlayerFishEvent, Object, Entity> getHookFunction;
     private final SpigotFunctionChooser<ProjectileHitEvent, Object, Entity> getHitEntityFunction;
@@ -55,7 +55,7 @@ public class ModuleFishingKnockback extends Module {
         knockbackNonPlayerEntities = isSettingEnabled("knockbackNonPlayerEntities");
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void onRodLand(ProjectileHitEvent e) {
         final Entity hookEntity = e.getEntity();
         final World world = hookEntity.getWorld();
@@ -142,7 +142,7 @@ public class ModuleFishingKnockback extends Module {
     /**
      * This is to cancel dragging the entity closer when you reel in
      */
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     private void onReelIn(PlayerFishEvent e) {
         if (e.getState() != PlayerFishEvent.State.CAUGHT_ENTITY) return;
 

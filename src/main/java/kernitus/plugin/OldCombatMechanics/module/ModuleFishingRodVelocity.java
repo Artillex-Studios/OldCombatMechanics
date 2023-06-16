@@ -24,7 +24,7 @@ import java.util.Random;
  * Fishing rod gravity in 1.14+ is 0.03 while in 1.8 it is 0.04
  * Launch velocity in 1.9+ is also different from the 1.8 formula
  */
-public class ModuleFishingRodVelocity extends Module {
+public class ModuleFishingRodVelocity extends OCMModule {
 
     private Random random;
     private boolean hasDifferentGravity;
@@ -47,7 +47,7 @@ public class ModuleFishingRodVelocity extends Module {
         hasDifferentGravity = Reflector.versionIsNewerOrEqualAs(1, 14, 0);
     }
 
-    @EventHandler
+    @EventHandler (ignoreCancelled = true)
     public void onFishEvent(PlayerFishEvent event) {
         final FishHook fishHook = getHook.apply(event);
 

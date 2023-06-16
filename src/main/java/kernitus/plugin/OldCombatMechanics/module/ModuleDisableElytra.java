@@ -6,12 +6,11 @@
 package kernitus.plugin.OldCombatMechanics.module;
 
 import kernitus.plugin.OldCombatMechanics.OCMMain;
-import kernitus.plugin.OldCombatMechanics.utilities.Config;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.block.Action;
@@ -27,7 +26,7 @@ import org.bukkit.inventory.PlayerInventory;
 /**
  * Prevents players from equipping an elytra.
  */
-public class ModuleDisableElytra extends Module {
+public class ModuleDisableElytra extends OCMModule {
 
     private static final int CHEST_SLOT = 38;
     private static final int OFFHAND_SLOT = 40;
@@ -61,8 +60,7 @@ public class ModuleDisableElytra extends Module {
                     || (slot == CHEST_SLOT && isElytra(cursor))
 
                     // If they shift-clicked an elytra into the chest slot
-                    || (isElytra(currentItem) && slot != CHEST_SLOT &&
-                    (clickType == ClickType.SHIFT_LEFT || clickType == ClickType.SHIFT_RIGHT))
+                    || (isElytra(currentItem) && slot != CHEST_SLOT && e.isShiftClick())
 
                     // If they used F to swap an elytra from the offhand slot into the chest slot
                     || (clickType == ClickType.SWAP_OFFHAND && slot == CHEST_SLOT && isElytra(inv.getItem(OFFHAND_SLOT)))
@@ -84,12 +82,9 @@ public class ModuleDisableElytra extends Module {
         final Action action = e.getAction();
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
 
-        if (!isElytra(e.getItem())) return;
-
-        final Block block = e.getClickedBlock();
-        if (block != null && Config.getInteractiveBlocks().contains(block.getType())) return;
-
-        e.setCancelled(true);
+        // Stop usage of item, but allow interacting with blocks
+        if (isElytra(e.getItem()))
+            e.setUseItemInHand(Event.Result.DENY);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)

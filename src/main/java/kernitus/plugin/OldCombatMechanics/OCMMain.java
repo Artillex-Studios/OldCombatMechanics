@@ -9,23 +9,27 @@ import kernitus.plugin.OldCombatMechanics.commands.OCMCommandCompleter;
 import kernitus.plugin.OldCombatMechanics.commands.OCMCommandHandler;
 import kernitus.plugin.OldCombatMechanics.hooks.PlaceholderAPIHook;
 import kernitus.plugin.OldCombatMechanics.hooks.api.Hook;
-import kernitus.plugin.OldCombatMechanics.module.Module;
 import kernitus.plugin.OldCombatMechanics.module.*;
 import kernitus.plugin.OldCombatMechanics.updater.ModuleUpdateChecker;
 import kernitus.plugin.OldCombatMechanics.utilities.Config;
 import kernitus.plugin.OldCombatMechanics.utilities.Messenger;
+import kernitus.plugin.OldCombatMechanics.utilities.damage.AttackCooldownTracker;
 import kernitus.plugin.OldCombatMechanics.utilities.damage.EntityDamageByEntityListener;
+import kernitus.plugin.OldCombatMechanics.utilities.reflection.Reflector;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SimpleBarChart;
 import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.event.EventException;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.RegisteredListener;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -60,7 +64,7 @@ public class OCMMain extends JavaPlugin {
         PluginDescriptionFile pdfFile = this.getDescription();
 
         // Setting up config.yml
-        CH.setupConfig();
+        CH.setupConfigIfNotPresent();
 
         // Initialise ModuleLoader utility
         ModuleLoader.initialise(this);
@@ -93,8 +97,8 @@ public class OCMMain extends JavaPlugin {
                 new SimpleBarChart(
                         "enabled_modules",
                         () -> ModuleLoader.getModules().stream()
-                                .filter(Module::isEnabled)
-                                .collect(Collectors.toMap(Module::toString, module -> 1))
+                                .filter(OCMModule::isEnabled)
+                                .collect(Collectors.toMap(OCMModule::toString, module -> 1))
                 )
         );
 
@@ -127,11 +131,20 @@ public class OCMMain extends JavaPlugin {
 
         // Logging to console the enabling of OCM
         logger.info(pdfFile.getName() + " v" + pdfFile.getVersion() + " has been enabled");
+
+        if (Config.moduleEnabled("update-checker"))
+            Bukkit.getScheduler().runTaskLaterAsynchronously(this,
+                    () -> new UpdateChecker(this).performUpdate(), 20L);
+
+        metrics.addCustomChart(new SimplePie("auto_update_pie",
+                () -> Config.moduleSettingEnabled("update-checker",
+                        "auto-update") ? "enabled" : "disabled"));
+
     }
 
     @Override
     public void onDisable() {
-        PluginDescriptionFile pdfFile = this.getDescription();
+        final PluginDescriptionFile pdfFile = this.getDescription();
 
         disableListeners.forEach(Runnable::run);
 
@@ -160,10 +173,15 @@ public class OCMMain extends JavaPlugin {
 
     private void registerModules() {
         // Update Checker (also a module so we can use the dynamic registering/unregistering)
-        ModuleLoader.addModule(new ModuleUpdateChecker(this, this.getFile()));
+        ModuleLoader.addModule(new ModuleUpdateChecker(this));
 
         // Module listeners
         ModuleLoader.addModule(new ModuleAttackCooldown(this));
+
+        // If below 1.16, we need to keep track of player attack cooldown ourselves
+        if (Reflector.getMethod(HumanEntity.class, "getAttackCooldown", 0) == null) {
+            ModuleLoader.addModule(new AttackCooldownTracker(this));
+        }
 
         //Listeners registered after with same priority appear to be called later
 
@@ -236,5 +254,16 @@ public class OCMMain extends JavaPlugin {
      */
     public void addEnableListener(Runnable action) {
         enableListeners.add(action);
+    }
+
+    /**
+     * Get the plugin's JAR file
+     *
+     * @return The File object corresponding to this plugin
+     */
+    @NotNull
+    @Override
+    public File getFile() {
+        return super.getFile();
     }
 }

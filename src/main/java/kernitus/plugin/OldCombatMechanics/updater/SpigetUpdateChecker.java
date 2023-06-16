@@ -8,13 +8,15 @@ package kernitus.plugin.OldCombatMechanics.updater;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import kernitus.plugin.OldCombatMechanics.utilities.Messenger;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.ReadableByteChannel;
 import java.util.Collections;
 import java.util.List;
 
@@ -26,6 +28,8 @@ public class SpigetUpdateChecker {
     private static final String USER_AGENT = "OldCombatMechanics";
     private static final String VERSIONS_URL = "https://api.spiget.org/v2/resources/19510/versions?size=15000";
     private static final String UPDATES_URL = "https://api.spiget.org/v2/resources/19510/updates?size=15000";
+    private static final String UPDATE_URL = "https://www.spigotmc.org/resources/oldcombatmechanics.19510/update?update=";
+    private static final String DOWNLOAD_URL = "https://api.spiget.org/v2/resources/19510/download";
     private String latestVersion = "";
 
     /**
@@ -33,19 +37,18 @@ public class SpigetUpdateChecker {
      *
      * @return true if an update is available
      */
-    public boolean isUpdateAvailable(){
-        try{
-            List<VersionPojo> versions = getVersions(VERSIONS_URL);
+    public boolean isUpdateAvailable() {
+        try {
+            final List<VersionPojo> versions = getVersions(VERSIONS_URL);
 
-            if(versions.isEmpty()){
-                return false;
-            }
+            if (versions.isEmpty()) return false;
 
-            VersionPojo currentVersion = versions.get(versions.size() - 1);
+            final VersionPojo currentVersion = versions.get(versions.size() - 1);
             latestVersion = currentVersion.getName();
 
             return VersionChecker.shouldUpdate(latestVersion);
-        } catch(Exception e){
+        } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -53,21 +56,18 @@ public class SpigetUpdateChecker {
     /**
      * Returns the URL for the update.
      *
-     * @return the URL for the update
+     * @return URL for the update
      */
-    public String getUpdateURL(){
-        try{
-            List<VersionPojo> versions = getVersions(UPDATES_URL);
+    public String getUpdateURL() {
+        try {
+            final List<VersionPojo> versions = getVersions(UPDATES_URL);
 
-            if(versions.isEmpty()){
-                return "Error getting update URL";
-            }
+            if (versions.isEmpty()) return "Error getting update URL";
 
-            VersionPojo currentVersion = versions.get(versions.size() - 1);
+            final VersionPojo currentVersion = versions.get(versions.size() - 1);
 
-            String updateId = currentVersion.getId();
-            return "https://www.spigotmc.org/resources/oldcombatmechanics.19510/update?update=" + updateId;
-        } catch(Exception e){
+            return UPDATE_URL + currentVersion.getId();
+        } catch (Exception e) {
             return "Error getting update URL";
         }
     }
@@ -77,8 +77,41 @@ public class SpigetUpdateChecker {
      *
      * @return the latest found version
      */
-    public String getLatestVersion(){
+    public String getLatestVersion() {
         return latestVersion;
+    }
+
+    /**
+     * Downloads the latest version of the plugin to the specified location.
+     *
+     * @param updateFolderFile The location of the server's plugin update folder
+     * @param fileName         The name of the JAR file to be updated
+     * @return Whether the file was downloaded successfully or not
+     */
+    public boolean downloadLatestVersion(File updateFolderFile, String fileName) {
+        updateFolderFile.mkdirs(); // Create all parent directories if required
+        File downloadFile = new File(updateFolderFile, fileName);
+
+        try {
+            final HttpURLConnection connection = (HttpURLConnection) new URL(DOWNLOAD_URL).openConnection();
+            connection.addRequestProperty("User-Agent", USER_AGENT);
+
+            try (FileOutputStream fileOutputStream = new FileOutputStream(downloadFile);
+                 final ReadableByteChannel readableByteChannel = Channels.newChannel(connection.getInputStream());
+                 final FileChannel fileChannel = fileOutputStream.getChannel();
+            ) {
+                // Use NIO for better performance
+                fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            } catch (Exception e) {
+                downloadFile.delete(); // Remove downloaded file is something went wrong
+                throw new RuntimeException(e); // Rethrow exception to catch in outer scope
+            }
+        } catch (IOException e) {
+            Messenger.warn("Tried to download plugin update, but an error occurred");
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -87,33 +120,33 @@ public class SpigetUpdateChecker {
      * @param urlString the url to read the json from
      * @return a list with all found versions
      */
-    private List<VersionPojo> getVersions(String urlString){
-        try{
-            InputStreamReader reader = fetchPage(urlString);
+    private List<VersionPojo> getVersions(String urlString) {
+        try {
+            final InputStreamReader reader = fetchPage(urlString);
 
-            Type pojoType = new TypeToken<List<VersionPojo>>() {
+            final Type pojoType = new TypeToken<List<VersionPojo>>() {
             }.getType();
 
-            List<VersionPojo> parsedVersions = new Gson().fromJson(reader, pojoType);
+            final List<VersionPojo> parsedVersions = new Gson().fromJson(reader, pojoType);
 
-            if(parsedVersions == null){
+            if (parsedVersions == null) {
                 System.err.println("JSON was at EOF when checking for spiget updates!");
                 return Collections.emptyList();
             }
 
             return parsedVersions;
-        } catch(JsonSyntaxException | IOException e){
+        } catch (JsonSyntaxException | IOException e) {
             e.printStackTrace();
             return Collections.emptyList();
         }
     }
 
-    private InputStreamReader fetchPage(String urlString) throws IOException{
-        URL url = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    private InputStreamReader fetchPage(String urlString) throws IOException {
+        final URL url = new URL(urlString);
+        final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.addRequestProperty("User-Agent", USER_AGENT);
 
-        InputStream inputStream = connection.getInputStream();
+        final InputStream inputStream = connection.getInputStream();
         return new InputStreamReader(inputStream);
     }
 
@@ -132,7 +165,7 @@ public class SpigetUpdateChecker {
          *
          * @return the name of this version
          */
-        String getName(){
+        String getName() {
             return name;
         }
 
@@ -141,7 +174,7 @@ public class SpigetUpdateChecker {
          *
          * @return the id of this version
          */
-        String getId(){
+        String getId() {
             return id;
         }
     }

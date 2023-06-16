@@ -7,7 +7,8 @@ package kernitus.plugin.OldCombatMechanics.module;
 
 import kernitus.plugin.OldCombatMechanics.OCMMain;
 import kernitus.plugin.OldCombatMechanics.utilities.MathsHelper;
-import me.vagdedes.spartan.system.Enums;
+import me.vagdedes.spartan.api.API;
+import me.vagdedes.spartan.system.Enums.HackType;
 import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.EntityType;
@@ -25,7 +26,7 @@ import java.util.WeakHashMap;
  * Establishes custom health regeneration rules.
  * Default values based on 1.8 from <a href="https://minecraft.gamepedia.com/Hunger?oldid=948685">wiki</a>
  */
-public class ModulePlayerRegen extends Module {
+public class ModulePlayerRegen extends OCMModule {
 
     private final Map<UUID, Long> healTimes = new WeakHashMap<>();
     private boolean spartanInstalled;
@@ -36,10 +37,8 @@ public class ModulePlayerRegen extends Module {
         initSpartan();
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onRegen(EntityRegainHealthEvent e) {
-        if (e.isCancelled()) return; // In case some other plugin cancelled the event
-
         if (e.getEntityType() != EntityType.PLAYER
                 || e.getRegainReason() != EntityRegainHealthEvent.RegainReason.SATIATED)
             return;
@@ -96,8 +95,7 @@ public class ModulePlayerRegen extends Module {
     }
 
     private void disableSpartanRegenCheck(Player player) {
-        final int ticksToCancel = plugin.getConfig().getInt("support.spartan-cancel-ticks", 1);
-        me.vagdedes.spartan.api.API.cancelCheck(player, Enums.HackType.FastHeal, ticksToCancel);
+        API.cancelCheck(player, HackType.FastHeal, 1);
     }
 
     private void initSpartan() {
